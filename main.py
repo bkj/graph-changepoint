@@ -20,7 +20,7 @@ from scipy.sparse.csgraph import minimum_spanning_tree
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--inpath', type=str, default='Z.tsv')
+    parser.add_argument('--inpath', type=str, default='X.tsv')
     parser.add_argument('--outpath', type=str, default='X_rz.tsv')
     return parser.parse_args()
 
