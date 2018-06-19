@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 """
     main.py
+    
+    Implementation of "Graph-Based Change Point Detection"
+        https://arxiv.org/abs/1209.1625.pdf
 """
 
 from __future__ import print_function, division
