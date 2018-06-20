@@ -63,7 +63,7 @@ def scan_stat_2d(g, n_jobs=1):
     return np.vstack(res)
 
 
-def compute_Z(R, g):
+def compute_z(R, g):
     """ normalize 1d scan stats (by analytically computing mean and variance) """
     degrees = np.array([len(v) for v in g.values()])
     nE      = degrees.sum() / 2
@@ -79,7 +79,7 @@ def compute_Z(R, g):
     return (mu_t - R) / np.sqrt(A_tt - (mu_t ** 2) + 1e-7)
 
 
-def compute_Z_2d(R_2d, g):
+def compute_z_2d(R_2d, g):
     """ normalize 2d scan stats (by analytically computing mean and variance) """
     degrees = np.array([len(v) for v in g.values()])
     nE      = degrees.sum() / 2
@@ -119,6 +119,9 @@ if __name__ == "__main__":
     
     args = parse_args()
     
+    # --
+    # IO
+    
     edges = pd.read_csv(args.inpath, header=None, sep='\t').values
     
     # Dictionary of edges
@@ -138,31 +141,24 @@ if __name__ == "__main__":
     # Run changepoint detection
     
     if not args.two_d:
-        print('main.py: computing scan stat', file=sys.stderr)
-        t = time()
-        R = scan_stat(g)
-        print('\t took %f seconds' % (time() - t), file=sys.stderr)
-        
-        print('main.py: normalizing', file=sys.stderr)
-        t = time()
-        Z = compute_Z(R, g)
-        print('\t took %f seconds' % (time() - t), file=sys.stderr)
-        
-        print('main.py: saving', file=sys.stderr)
-        out_df = pd.DataFrame({"R" : R, "Z" : Z})
-        
+        _scan_stat, _compute_z = scan_stat, compute_z
     else:
-        print('main.py: computing scan stat', file=sys.stderr)
-        t = time()
-        R = scan_stat_2d(g)
-        print('\t took %f seconds' % (time() - t), file=sys.stderr)
-        
-        print('main.py: normalizing', file=sys.stderr)
-        t = time()
-        Z = compute_Z_2d(R, g)
-        print('\t took %f seconds' % (time() - t), file=sys.stderr)
-        
-        print('main.py: saving', file=sys.stderr)
+        _scan_stat, _compute_z = scan_stat_2d, compute_z_2d
+    
+    print('main.py: computing scan stat', file=sys.stderr)
+    t = time()
+    R = _scan_stat(g)
+    print('\t took %f seconds' % (time() - t), file=sys.stderr)
+    
+    print('main.py: normalizing', file=sys.stderr)
+    t = time()
+    Z = _compute_z(R, g)
+    print('\t took %f seconds' % (time() - t), file=sys.stderr)
+    
+    print('main.py: saving', file=sys.stderr)
+    if not args.two_d:
+        out_df = pd.DataFrame({"R" : R, "Z" : Z})
+    else:
         out_df = melt_array(R)
         out_df = out_df[out_df.start < out_df.end]
         out_df.columns = ('start', 'end', 'R')
