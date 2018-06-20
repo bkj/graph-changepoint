@@ -8,25 +8,25 @@
 
 from __future__ import print_function, division
 
+import sys
 import argparse
 import numpy as np
 import pandas as pd
 import networkx as nx
-from scipy.spatial.distance import squareform, pdist
-from scipy.sparse.csgraph import minimum_spanning_tree
 
 # --
 # Helpers
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--inpath', type=str, default="X2.tsv")
+    parser.add_argument('--inpath', type=str)
     parser.add_argument('--outpath', type=str)
     parser.add_argument('--two-d', action="store_true")
     return parser.parse_args()
 
 
 def scan_stat(g, offset=0):
+    """ apply scan stat the computes size of cut from offset to n """
     R, cross = [], []
     for n in g.nodes:
         for e in g.edges(n):
@@ -39,7 +39,13 @@ def scan_stat(g, offset=0):
     return np.array(R)
 
 
+def scan_stat_2d(g):
+    """ apply scan stat for all possible offsets -- could be done in parallel """
+    return np.vstack([scan_stat(g, offset=offset + 1) for offset in g.nodes])
+
+
 def compute_Z(R, g):
+    """ normalize 1d scan stats (by analytically computing mean and variance) """
     nE     = g.number_of_edges()
     n      = g.number_of_nodes()
     deg_sq = (np.array(dict(g.degree).values()) ** 2).sum()
@@ -53,11 +59,8 @@ def compute_Z(R, g):
     return (mu_t - R) / np.sqrt(A_tt - (mu_t ** 2) + 1e-7)
 
 
-def scan_stat_2d(g):
-    return np.vstack([scan_stat(g, offset=offset + 1) for offset in g.nodes])
-
-
 def compute_Z_2d(R_2d, g):
+    """ normalize 2d scan stats (by analytically computing mean and variance) """
     nE     = g.number_of_edges()
     n      = g.number_of_nodes()
     deg_sq = (np.array(dict(g.degree).values()) ** 2).sum()
@@ -73,12 +76,14 @@ def compute_Z_2d(R_2d, g):
     return (mu_t - R_2d) / np.sqrt(V_tt + 1e-7)
 
 
-def random_stat(g, num_nodes):
-    nodes = set(np.random.choice(g.nodes, num_nodes))
-    return len([[e for e in g.edges(n) if e[1] not in nodes] for n in nodes])
+# def random_stat(g, num_nodes):
+#     """ compute size of random cut """
+#     nodes = set(np.random.choice(g.nodes, num_nodes))
+#     return len([[e for e in g.edges(n) if e[1] not in nodes] for n in nodes])
 
 
 def melt_array(x):
+    """ helper for data formatting """
     df = pd.DataFrame(x)
     df['start'] = np.arange(df.shape[0])
     df = pd.melt(df, id_vars='start')
@@ -93,30 +98,34 @@ if __name__ == "__main__":
     
     args = parse_args()
     
-    # --
-    # Form graph -- this part should be done externally probably...
-    
-    X      = pd.read_csv(args.inpath, header=None, sep='\t').values
-    X_dist = squareform(pdist(X))
-    mst    = minimum_spanning_tree(X_dist).tocoo()
-    edges  = np.column_stack([mst.row, mst.col])
-    g      = nx.from_edgelist(edges)
+    edges = pd.read_csv(args.inpath, header=None, sep='\t').values
+    g     = nx.from_edgelist(edges)
     
     # --
     # Run changepoint detection
     
     if not args.two_d:
+        print('main.py: computing scan stat', file=sys.stderr)
         R = scan_stat(g)
+        
+        print('main.py: normalizing', file=sys.stderr)
         Z = compute_Z(R, g)
         
+        print('main.py: saving', file=sys.stderr)
         out_df = pd.DataFrame({"R" : R, "Z" : Z})
         
     else:
+        print('main.py: computing scan stat', file=sys.stderr)
         R = scan_stat_2d(g)
+        
+        print('main.py: normalizing', file=sys.stderr)
         Z = compute_Z_2d(R, g)
         
+        print('main.py: saving', file=sys.stderr)
         out_df = melt_array(R)
+        out_df = out_df[out_df.start < out_df.end]
         out_df.columns = ('start', 'end', 'R')
         out_df['Z'] = melt_array(Z)['value']
     
     out_df.to_csv(args.outpath, sep='\t', index=False)
+
