@@ -29,4 +29,18 @@ python main.py \
 # ----------------------------------------------------------------------
 # Larger real datasets
 
+mkdir -p _results/yankee
+python mst.py \
+    --inpath _data/yankee/yankee.tsv \
+    --outpath _results/yankee/yankee_edges.tsv
+
+python main.py \
+    --inpath _results/yankee/yankee_edges.tsv \
+    --outpath _results/yankee/yankee_result.tsv
+
+python main.py \
+    --inpath _results/yankee/yankee_edges.tsv \
+    --outpath _results/yankee/yankee_result.tsv \
+    --two-d
+
 # ** In progress **
