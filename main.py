@@ -80,9 +80,10 @@ def compute_Z(R, g):
 
 def compute_Z_2d(R_2d, g):
     """ normalize 2d scan stats (by analytically computing mean and variance) """
-    nE     = g.number_of_edges()
-    n      = g.number_of_nodes()
-    deg_sq = (np.array(dict(g.degree).values()) ** 2).sum()
+    degrees = np.array([len(v) for v in g.values()])
+    nE      = degrees.sum() / 2
+    n       = len(g)
+    deg_sq  = (degrees ** 2).sum()
     
     tt = np.arange(n)
     tt = np.vstack([tt - i for i in range(len(tt))])
@@ -147,7 +148,7 @@ if __name__ == "__main__":
         
     else:
         print('main.py: computing scan stat', file=sys.stderr)
-        R = scan_stat_2d(gg)
+        R = scan_stat_2d(g)
         
         print('main.py: normalizing', file=sys.stderr)
         Z = compute_Z_2d(R, g)
