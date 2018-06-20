@@ -14,6 +14,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import networkx as nx
+from time import time
 from heapq import heappush, heappop
 from joblib import Parallel, delayed
 
@@ -138,20 +139,28 @@ if __name__ == "__main__":
     
     if not args.two_d:
         print('main.py: computing scan stat', file=sys.stderr)
+        t = time()
         R = scan_stat(g)
+        print('\t took %f seconds' % (time() - t), file=sys.stderr)
         
         print('main.py: normalizing', file=sys.stderr)
+        t = time()
         Z = compute_Z(R, g)
+        print('\t took %f seconds' % (time() - t), file=sys.stderr)
         
         print('main.py: saving', file=sys.stderr)
         out_df = pd.DataFrame({"R" : R, "Z" : Z})
         
     else:
         print('main.py: computing scan stat', file=sys.stderr)
+        t = time()
         R = scan_stat_2d(g)
+        print('\t took %f seconds' % (time() - t), file=sys.stderr)
         
         print('main.py: normalizing', file=sys.stderr)
+        t = time()
         Z = compute_Z_2d(R, g)
+        print('\t took %f seconds' % (time() - t), file=sys.stderr)
         
         print('main.py: saving', file=sys.stderr)
         out_df = melt_array(R)
