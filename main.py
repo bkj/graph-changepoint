@@ -4,6 +4,7 @@
     
     Implementation of "Graph-Based Change Point Detection"
         https://arxiv.org/abs/1209.1625.pdf
+    
 """
 
 from __future__ import print_function, division
@@ -13,6 +14,8 @@ import argparse
 import numpy as np
 import pandas as pd
 import networkx as nx
+from heapq import heappush, heappop
+from joblib import Parallel, delayed
 
 # --
 # Helpers
@@ -27,28 +30,44 @@ def parse_args():
 
 def scan_stat(g, offset=0):
     """ apply scan stat the computes size of cut from offset to n """
-    R, cross = [], []
-    for n in g.nodes:
-        for e in g.edges(n):
-            if (e[0] >= offset) and ((e[1] > n) or (e[1] < offset)):
-                cross.append(e)
-        
-        cross = [c for c in cross if (c[1] > n) or (c[1] < offset)]
-        R.append(len(cross))
     
-    return np.array(R)
+    lo_cross = []
+    hi_cross = []
+    
+    R = np.zeros(len(g), dtype=int)
+    for src in g.keys():
+        if src >= offset:
+            for neib in g[src]:
+                if (neib > src):
+                    heappush(hi_cross, (neib, src))
+                elif (neib < offset): 
+                    lo_cross.append((neib, src))
+        
+        while hi_cross and (hi_cross[0][0] <= src):
+            _ = heappop(hi_cross)
+        
+        R[src] = len(hi_cross) + len(lo_cross)
+    
+    return R
 
 
-def scan_stat_2d(g):
+def scan_stat_2d(g, n_jobs=1):
     """ apply scan stat for all possible offsets -- could be done in parallel """
-    return np.vstack([scan_stat(g, offset=offset + 1) for offset in g.nodes])
+    if n_jobs == 1:
+        res = [scan_stat(g, offset=offset + 1) for offset in g.keys()]
+    else:
+        jobs = [delayed(scan_stat)(g, offset=offset + 1) for offset in g.keys()]
+        res = Parallel(n_jobs=n_jobs, verbose=1)(jobs)
+        
+    return np.vstack(res)
 
 
 def compute_Z(R, g):
     """ normalize 1d scan stats (by analytically computing mean and variance) """
-    nE     = g.number_of_edges()
-    n      = g.number_of_nodes()
-    deg_sq = (np.array(dict(g.degree).values()) ** 2).sum()
+    degrees = np.array([len(v) for v in g.values()])
+    nE      = degrees.sum() / 2
+    n       = len(g)
+    deg_sq  = (degrees ** 2).sum()
     
     tt     = np.arange(n) + 1
     mu_t   = nE * 2 * tt * (n - tt) / (n * (n - 1))
@@ -99,7 +118,19 @@ if __name__ == "__main__":
     args = parse_args()
     
     edges = pd.read_csv(args.inpath, header=None, sep='\t').values
-    g     = nx.from_edgelist(edges)
+    
+    # Dictionary of edges
+    g = {}
+    for src, trg in edges:
+        if src in g:
+            g[src].append(trg)
+        else:
+            g[src] = [trg]
+            
+        if trg in g:
+            g[trg].append(src)
+        else:
+            g[trg] = [src]
     
     # --
     # Run changepoint detection
@@ -116,7 +147,7 @@ if __name__ == "__main__":
         
     else:
         print('main.py: computing scan stat', file=sys.stderr)
-        R = scan_stat_2d(g)
+        R = scan_stat_2d(gg)
         
         print('main.py: normalizing', file=sys.stderr)
         Z = compute_Z_2d(R, g)
